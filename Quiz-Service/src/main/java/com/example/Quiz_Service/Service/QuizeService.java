@@ -36,34 +36,21 @@ public class QuizeService {
     }
 
     public ResponseEntity<List<QuestionWrapper>> getQuiz(Integer id) {
-
-//        Optional<Quiz> quize = quizeDao.findById(id);
-//        List<Question> questionFromDB = quize.get().getQuestions();
-        List<QuestionWrapper> quetionForUser = new ArrayList<>();
+        Quiz quize = quizeDao.findById(id).get();
+        List<Integer> questionIds = quize.getQuestions();
+        ResponseEntity<List<QuestionWrapper>> questions = quizeinterface.getQuestionFromid(questionIds);
 //        for(Question q : questionFromDB){
 //            QuestionWrapper qw = new QuestionWrapper(q.getId(),q.getQuestionTitle(),q.getOption1(),q.getOption2(),q.getOption3(),q.getOption4());
 //            quetionForUser.add(qw);
 //        }
 
-        return new ResponseEntity<>(quetionForUser,HttpStatus.OK);
+        return questions;
     }
 
     public ResponseEntity<Integer> calculateResult(Integer id, List<Response> responses) {
-//        Optional<Quiz> quize = quizeDao.findById(id);
-//        List<Question>questions = quize.get().getQuestions();
-        int right=0;
-//        int i = 0;
-//        System.out.println("responses: "+ responses);
-//        for (Response response :responses){
-//            System.out.println("questions.get(i).getRightAnswer() : " + questions.get(i).getRightAnswer());
-//            System.out.println("response.getResponse(): "+response.getResponse() );
-//            if (questions.get(i).getRightAnswer().equals(response.getResponse())) {
-//
-//                right++;
-//            }
-//            i++;
-//        }
 
-        return new ResponseEntity<>(right,HttpStatus.OK);
+        ResponseEntity<Integer> Score = quizeinterface.getScore(responses);
+
+        return Score;
     }
 }
