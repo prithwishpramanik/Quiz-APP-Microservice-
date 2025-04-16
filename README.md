@@ -45,16 +45,147 @@ A scalable quiz application built with Spring Boot microservices, featuring user
 
 ### Microservice Diagram
 ```mermaid
-flowchart TD
-    Client --> API_Gateway
-    API_Gateway --> Eureka
-    subgraph Microservices
-        API_Gateway --> User_Service
-        API_Gateway --> Quiz_Service
-        Quiz_Service -->|Feign| User_Service
+%% Quiz Creation Flow with API Gateway and Microservices
+sequenceDiagram
+    participant User
+    participant APIGateway
+    participant QuizController
+    participant QuizService
+    participant QuizServiceInterface as QuizServiceInterface (Feign Client)
+    participant QuestionController
+    participant QuestionService
+    participant QuestionDao
+    participant QuizRepository
+    participant QuestionDB
+    participant QuizDB
+
+    User->>APIGateway: POST /quiz/create (QuizDTO)
+    activate APIGateway
+    APIGateway->>QuizController: Route to quiz/create
+    deactivate APIGateway
+
+    activate QuizController
+    QuizController->>QuizService: createQuiz(quizDTO)
+    deactivate QuizController
+
+    activate QuizService
+    Note right of QuizService: quizDTO contains:<br/>- category<br/>- numQ<br/>- title
+    QuizService->>QuizServiceInterface: generateQuiz(category, numQ)
+    deactivate QuizService
+
+    activate QuizServiceInterface
+    Note right of QuizServiceInterface: @FeignClient("QUESTION-SERVICE")<br/>GET /api/generateQuiz
+    QuizServiceInterface->>QuestionController: GET /api/generateQuiz?category={category}&numQ={numQ}
+    deactivate QuizServiceInterface
+
+    activate QuestionController
+    QuestionController->>QuestionService: generateQuiz(category, numQ)
+    deactivate QuestionController
+
+    activate QuestionService
+    QuestionService->>QuestionDao: findQuestionsByCategory(category, numQ)
+    deactivate QuestionService
+
+    activate QuestionDao
+    QuestionDao->>QuestionDB: Query questions
+    QuestionDB-->>QuestionDao: Return questions
+    deactivate QuestionDao
+
+    QuestionDao-->>QuestionService: List<Question>
+    activate QuestionService
+    QuestionService-->>QuestionController: Quiz questions
+    deactivate QuestionService
+
+    activate QuestionController
+    QuestionController-->>QuizServiceInterface: Return generated questions
+    deactivate QuestionController
+
+    activate QuizServiceInterface
+    QuizServiceInterface-->>QuizService: Return questions
+    deactivate QuizServiceInterface
+
+    activate QuizService
+    Note right of QuizService: Assemble Quiz with:<br/>- Title<br/>- Category<br/>- Questions
+    QuizService->>QuizRepository: save(quiz)
+    deactivate QuizService
+
+    activate QuizRepository
+    QuizRepository->>QuizDB: Store Quiz entity
+    QuizDB-->>QuizRepository: Stored confirmation
+    deactivate QuizRepository
+
+    QuizRepository-->>QuizService: Return persisted Quiz
+    activate QuizService
+    QuizService-->>QuizController: Return created Quiz
+    deactivate QuizService
+
+    activate QuizController
+    QuizController-->>APIGateway: Return response
+    deactivate QuizController
+
+    activate APIGateway
+    APIGateway-->>User: Return created Quiz
+    deactivate APIGateway
+
+    box lightblue "Quiz Database"
+        participant QuizEntity
     end
-    User_Service --> User_DB[(User DB)]
-    Quiz_Service --> Quiz_DB[(Quiz DB)]
+    
+    box lightgreen "Question Database"
+        participant QuestionEntity
+    end
+
+    Note right of QuizEntity: Quiz Entity Fields:<br/>- ID<br/>- Title<br/>- Category<br/>- Questions[]
+    Note right of QuestionEntity: Question Entity Fields:<br/>- ID<br/>- Category<br/>- QuestionText<br/>- Options<br/>- CorrectAnswer
+```
+```mermaid
+flowchart TD
+    A[User] -->|"POST /quiz/create<br/>(QuizDTO)"| B[API Gateway]
+    B -->|"Route Request"| C[Quiz Service]
+    C -->|"Parse QuizDTO"| D{"Validate Input?"}
+    D -->|"Valid"| E["Call Question Service<br/>via Feign Client"]
+    D -->|"Invalid"| Z["Return Error 400"]
+    
+    E -->|"GET /api/generateQuiz<br/>(category, numQ)"| F[Question Service]
+    F -->|"Query Database"| G[(Question DB)]
+    G -->|"Return Questions"| F
+    F -->|"List<Question>"| E
+    
+    E -->|"Received Questions"| H{"Questions<br/>Available?"}
+    H -->|"Yes"| I["Assemble Quiz Entity"]
+    H -->|"No"| Y["Return Error 404"]
+    
+    I -->|"Set Title/Category"| J["Save Quiz"]
+    J -->|"Persist Data"| K[(Quiz DB)]
+    K -->|"Save Result"| L{"Save<br/>Success?"}
+    L -->|"Yes"| M["Return 201 Created"]
+    L -->|"No"| N["Return Error 500"]
+    
+    M -->|"Quiz JSON"| A
+    N -->|"Error Message"| A
+    Y -->|"Error Message"| A
+    Z -->|"Error Details"| A
+
+    style A fill:#f9f,stroke:#333
+    style B fill:#cff,stroke:#333
+    style C fill:#9f9,stroke:#333
+    style F fill:#9f9,stroke:#333
+    style G fill:#f96,stroke:#333
+    style K fill:#f96,stroke:#333
+    style D,H,L fill:#ff9,stroke:#333
+
+    classDef microservice fill:#9f9,stroke:#333;
+    classDef database fill:#f96,stroke:#333;
+    classDef gateway fill:#cff,stroke:#333;
+    classDef decision fill:#ff9,stroke:#333;
+    classDef user fill:#f9f,stroke:#333;
+    
+    class A user
+    class B gateway
+    class C,F microservice
+    class G,K database
+    class D,H,L decision
+
 ```
 
 ### Data Flow
